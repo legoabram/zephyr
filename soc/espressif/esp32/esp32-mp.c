@@ -9,6 +9,7 @@
 #include <soc/gpio_periph.h>
 #include <soc/rtc_periph.h>
 
+#include <xt_instr_macros.h>
 #include <zephyr/drivers/interrupt_controller/intc_esp32.h>
 #include <soc.h>
 #include <ksched.h>
@@ -102,9 +103,10 @@ static void appcpu_entry2(void)
 	 * enable them for the user code to pass to irq_unlock()
 	 * later.
 	 */
-	__asm__ volatile("rsr.PS %0" : "=r"(ps));
+	ps = XTENSA_RSR("PS");
 	ps &= ~(XCHAL_PS_EXCM_MASK | XCHAL_PS_INTLEVEL_MASK);
-	__asm__ volatile("wsr.PS %0" : : "r"(ps));
+	ps |= XCHAL_EXCM_LEVEL;
+	XTENSA_WSR("PS", ps);
 
 	ie = 0;
 	__asm__ volatile("wsr.INTENABLE %0" : : "r"(ie));
@@ -189,7 +191,9 @@ __asm__("\n"
  */
 static void appcpu_entry1(void)
 {
-	z_appcpu_stack_switch(appcpu_top, appcpu_entry2);
+	// z_appcpu_stack_switch(appcpu_top, appcpu_entry2);
+	SET_STACK(appcpu_top);
+	appcpu_entry2();
 }
 #endif
 
