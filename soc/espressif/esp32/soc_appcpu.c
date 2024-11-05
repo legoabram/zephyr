@@ -69,7 +69,7 @@ void __app_cpu_start(void)
 	 * initialization code wants a valid _current before
 	 * z_prep_c() is invoked.
 	 */
-	__asm__ __volatile__("wsr.MISC0 %0; rsync" : : "r"(&_kernel.cpus[0]));
+	__asm__ __volatile__("wsr." ZSR_CPU_STR " %0; rsync" : : "r"(&_kernel.cpus[0]));
 
 	esp_intr_initialize();
 	/* Start Zephyr */

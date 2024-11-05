@@ -100,7 +100,7 @@ static void appcpu_entry2(void)
 	 */
 	_cpu_t *cpu = &_kernel.cpus[1];
 
-	__asm__ volatile("wsr.MISC0 %0" : : "r"(cpu));
+	__asm__ volatile("wsr." ZSR_CPU_STR " %0" : : "r"(cpu));
 
 	smp_log("ESP32: APPCPU running");
 

@@ -65,7 +65,7 @@ void __attribute__((section(".iram1"))) __esp_platform_start(void)
 	 * initialization code wants a valid _current before
 	 * arch_kernel_init() is invoked.
 	 */
-	__asm__ __volatile__("wsr.MISC0 %0; rsync" : : "r"(&_kernel.cpus[0]));
+	__asm__ __volatile__("wsr." ZSR_CPU_STR " %0; rsync" : : "r"(&_kernel.cpus[0]));
 
 	esp_reset_reason_init();
 
