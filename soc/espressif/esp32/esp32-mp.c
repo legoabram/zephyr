@@ -75,6 +75,22 @@ void smp_log(const char *msg)
 }
 
 #ifdef CONFIG_SMP
+IRAM_ATTR static void esp_crosscore_isr(void *arg)
+{
+	ARG_UNUSED(arg);
+
+	/* Right now this interrupt is only used for IPIs */
+	z_sched_ipi();
+
+	const int core_id = esp_core_id();
+
+	if (core_id == 0) {
+		DPORT_WRITE_PERI_REG(DPORT_CPU_INTR_FROM_CPU_0_REG, 0);
+	} else {
+		DPORT_WRITE_PERI_REG(DPORT_CPU_INTR_FROM_CPU_1_REG, 0);
+	}
+}
+
 static void appcpu_entry2(void)
 {
 	volatile int ps, ie;
@@ -101,6 +117,14 @@ static void appcpu_entry2(void)
 	_cpu_t *cpu = &_kernel.cpus[1];
 
 	__asm__ volatile("wsr." ZSR_CPU_STR " %0" : : "r"(cpu));
+
+	esp_intr_alloc(DT_IRQ_BY_IDX(DT_NODELABEL(ipi1), 0, irq),
+		ESP_PRIO_TO_FLAGS(DT_IRQ_BY_IDX(DT_NODELABEL(ipi1), 0, priority)) |
+		ESP_INT_FLAGS_CHECK(DT_IRQ_BY_IDX(DT_NODELABEL(ipi1), 0, flags)) |
+			ESP_INTR_FLAG_IRAM,
+		esp_crosscore_isr,
+		NULL,
+		NULL);
 
 	smp_log("ESP32: APPCPU running");
 
@@ -226,22 +250,6 @@ void esp_appcpu_start(void *entry_point)
 }
 
 #ifdef CONFIG_SMP
-IRAM_ATTR static void esp_crosscore_isr(void *arg)
-{
-	ARG_UNUSED(arg);
-
-	/* Right now this interrupt is only used for IPIs */
-	z_sched_ipi();
-
-	const int core_id = esp_core_id();
-
-	if (core_id == 0) {
-		DPORT_WRITE_PERI_REG(DPORT_CPU_INTR_FROM_CPU_0_REG, 0);
-	} else {
-		DPORT_WRITE_PERI_REG(DPORT_CPU_INTR_FROM_CPU_1_REG, 0);
-	}
-}
-
 void arch_cpu_start(int cpu_num, k_thread_stack_t *stack, int sz,
 		    arch_cpustart_t fn, void *arg)
 {
@@ -282,26 +290,15 @@ void arch_cpu_start(int cpu_num, k_thread_stack_t *stack, int sz,
 		NULL,
 		NULL);
 
-	esp_intr_alloc(DT_IRQ_BY_IDX(DT_NODELABEL(ipi1), 0, irq),
-		ESP_PRIO_TO_FLAGS(DT_IRQ_BY_IDX(DT_NODELABEL(ipi1), 0, priority)) |
-		ESP_INT_FLAGS_CHECK(DT_IRQ_BY_IDX(DT_NODELABEL(ipi1), 0, flags)) |
-			ESP_INTR_FLAG_IRAM,
-		esp_crosscore_isr,
-		NULL,
-		NULL);
-
 	smp_log("ESP32: APPCPU initialized");
 }
 
 void arch_sched_directed_ipi(uint32_t cpu_bitmap)
 {
-	const int core_id = esp_core_id();
-
-	ARG_UNUSED(cpu_bitmap);
-
-	if (core_id == 0) {
+	if ((cpu_bitmap & BIT(0)) != 0) {
 		DPORT_WRITE_PERI_REG(DPORT_CPU_INTR_FROM_CPU_0_REG, DPORT_CPU_INTR_FROM_CPU_0);
-	} else {
+	}
+	if ((cpu_bitmap & BIT(1)) != 0) {
 		DPORT_WRITE_PERI_REG(DPORT_CPU_INTR_FROM_CPU_1_REG, DPORT_CPU_INTR_FROM_CPU_1);
 	}
 }
