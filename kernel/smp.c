@@ -58,6 +58,9 @@ unsigned int z_smp_global_lock(void)
 {
 	unsigned int key = arch_irq_lock();
 
+	/** This is a BAD idea. But it was quick and easy to get it working. */
+	if (unlikely(_current == NULL)) return key;
+
 	if (!_current->base.global_lock_count) {
 		while (!atomic_cas(&global_lock, 0, 1)) {
 			arch_spin_relax();
@@ -71,11 +74,14 @@ unsigned int z_smp_global_lock(void)
 
 void z_smp_global_unlock(unsigned int key)
 {
-	if (_current->base.global_lock_count != 0U) {
-		_current->base.global_lock_count--;
+	/** This is a BAD idea. But it was quick and easy to get it working. */
+	if (!unlikely(_current == NULL)) {
+		if (_current->base.global_lock_count != 0U) {
+			_current->base.global_lock_count--;
 
-		if (!_current->base.global_lock_count) {
-			(void)atomic_clear(&global_lock);
+			if (!_current->base.global_lock_count) {
+				(void)atomic_clear(&global_lock);
+			}
 		}
 	}
 
