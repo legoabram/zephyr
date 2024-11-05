@@ -19,7 +19,13 @@
 #define MIN_DELAY 1000
 
 static struct k_spinlock lock;
-static unsigned int last_count;
+static unsigned int last_count[CONFIG_MP_MAX_NUM_CPUS];
+
+#ifdef CONFIG_SMP
+#define _last_count (last_count[arch_curr_cpu()->id])
+#else
+#define _last_count (last_count[0])
+#endif
 
 #if defined(CONFIG_TEST)
 const int32_t z_sys_timer_irq_for_test = UTIL_CAT(XCHAL_TIMER,
@@ -46,9 +52,9 @@ static void ccompare_isr(const void *arg)
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
 	uint32_t curr = ccount();
-	uint32_t dticks = (curr - last_count) / CYC_PER_TICK;
+	uint32_t dticks = (curr - _last_count) / CYC_PER_TICK;
 
-	last_count += dticks * CYC_PER_TICK;
+	_last_count += dticks * CYC_PER_TICK;
 
 	if (!IS_ENABLED(CONFIG_TICKLESS_KERNEL)) {
 		uint32_t next = last_count + CYC_PER_TICK;
@@ -76,14 +82,14 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 
 	/* Round up to next tick boundary */
 	cyc = ticks * CYC_PER_TICK;
-	adj = (curr - last_count) + (CYC_PER_TICK - 1);
+	adj = (curr - _last_count) + (CYC_PER_TICK - 1);
 	if (cyc <= MAX_CYC - adj) {
 		cyc += adj;
 	} else {
 		cyc = MAX_CYC;
 	}
 	cyc = (cyc / CYC_PER_TICK) * CYC_PER_TICK;
-	cyc += last_count;
+	cyc += _last_count;
 
 	if ((cyc - curr) < MIN_DELAY) {
 		cyc += CYC_PER_TICK;
@@ -101,7 +107,7 @@ uint32_t sys_clock_elapsed(void)
 	}
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
-	uint32_t ret = (ccount() - last_count) / CYC_PER_TICK;
+	uint32_t ret = (ccount() - _last_count) / CYC_PER_TICK;
 
 	k_spin_unlock(&lock, key);
 	return ret;
